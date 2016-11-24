@@ -29,6 +29,7 @@ public class Auctioneer extends Agent {
         getAllBidders();
         setStartAndBottomPrice();
         informBidders();
+        sendCFPToBidders();
 
         addBehaviour(new TickerBehaviour(this, 1000) {
             @Override
@@ -79,47 +80,49 @@ public class Auctioneer extends Agent {
         for(int i = 0; i<bidderAgents.length; i++){
             inform.addReceiver(bidderAgents[i]);
         }
-        inform.setContent(String.valueOf(startPrice));
-        inform.setConversationId("The-auction");
+
+        inform.setConversationId("Let the auction begin");
         send(inform);
 
+    }
+
+
+    protected void sendCFPToBidders(){
+        ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
+        for(int i = 0; i<bidderAgents.length; i++){
+            cfp.addReceiver(bidderAgents[i]);
+        }
+        cfp.setContent(String.valueOf(startPrice));
+        send(cfp);
     }
     protected void receivedProposalMsgs() {
         receivedMsg = receive();
         if(receivedMsg != null) {
-            if (receivedMsg.getPerformative() == 11) {
-
+            if (receivedMsg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
 
                 if(startPrice <= bottomPrice){
                     System.out.println("Came to Bottom Price and ended the auction");
-
                     return;
-
                 }
 
-                System.out.println(getLocalName() + " received " + receivedMsg.getContent() + " from a bidder");
                 if (proposeCount != bidderAgents.length) {
-                    if (receivedMsg.getContent().equalsIgnoreCase("accept")) {
+
                         AID winner = receivedMsg.getSender();
-                        ACLMessage replyToWinner = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+                        ACLMessage replyToWinner = new ACLMessage(ACLMessage.INFORM);
                         replyToWinner.addReceiver(winner);
                         replyToWinner.setContent("won!!");
                         send(replyToWinner);
                         this.doDelete();
 
-                    }
+                }
+            }
+            if(receivedMsg.getPerformative() == ACLMessage.REJECT_PROPOSAL){
+                    proposeCount++;
 
-                    if (receivedMsg.getContent().equalsIgnoreCase("reject")) {
-                        proposeCount++;
-                    }
-                    if (proposeCount == bidderAgents.length) {
-                        proposeCount = 0;
-                        decreasePrice();
-                        startOver();
-                    }
-
-
-
+                if (proposeCount == bidderAgents.length) {
+                    proposeCount = 0;
+                    decreasePrice();
+                    startOver();
                 }
             }
         }
@@ -127,15 +130,13 @@ public class Auctioneer extends Agent {
 
     @Override
     protected void takeDown() {
-       // System.out.println("Shutting down now");
         super.takeDown();
     }
-
     private void decreasePrice(){
         startPrice = startPrice - (int)(startPrice * 0.10);
     }
     private void startOver(){
-        informBidders();
+        sendCFPToBidders();
     }
 
 

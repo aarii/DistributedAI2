@@ -24,11 +24,23 @@ public class Bidder extends Agent {
     protected void setup() {
         System.out.println("Hello " + getLocalName());
         createServiceInDF();
+        receivedMsg = blockingReceive();
+            getInformMsgs();
 
         addBehaviour(new TickerBehaviour(this, 1000) {
             @Override
             protected void onTick() {
-                receivedMsgs();
+
+                receivedMsg = receive();
+                if(receivedMsg != null) {
+                    getCFPMsgs();
+                    if (x == true) {
+                        selectMaxPriceToPay();
+                        x = false;
+                    }
+                    getAcceptedProposal();
+                    sendProposeMsg();
+                }
             }
         });
     }
@@ -49,45 +61,36 @@ public class Bidder extends Agent {
 
     }
 
-    protected void receivedMsgs(){
-
-        receivedMsg = receive();
-        if(receivedMsg != null) {
-            getInformMsgs();
-
-            if(x == true) {
-                selectMaxPriceToPay();
-                x = false;
-            }
-
-            getAcceptedProposal();
-            sendProposeMsg();
+    protected  void getInformMsgs(){
+        if( receivedMsg.getPerformative()== ACLMessage.INFORM){
+            System.out.println(getLocalName() + " received an inform message saying: " + receivedMsg.getConversationId());
         }
     }
 
-    protected  void getInformMsgs(){
-        if( receivedMsg.getPerformative()==7){
-            System.out.println("Item price is: " + receivedMsg.getContent());
+    protected void getCFPMsgs(){
+        if(receivedMsg.getPerformative()== ACLMessage.CFP){
+            System.out.println(getLocalName() + " received an cfp message  with item price: " + receivedMsg.getContent());
+            //  System.out.println("Item price is: " + receivedMsg.getContent());
         }
     }
 
     protected void selectMaxPriceToPay(){
-        int temp = ThreadLocalRandom.current().nextInt(1, 100 +1);
-        int tempPrice = Integer.parseInt(receivedMsg.getContent());
-        maxPrice = (tempPrice / 100) * temp;
-        System.out.println(getLocalName() + "'s max price to pay for this item is: " + maxPrice);
+            int temp = ThreadLocalRandom.current().nextInt(1, 100 + 1);
+            int tempPrice = Integer.parseInt(receivedMsg.getContent());
+            maxPrice = (tempPrice / 100) * temp;
+            System.out.println(getLocalName() + " can pay " + temp + "% of the original price. Therefore the price the bidder can pay is: " + maxPrice);
 
     }
 
     protected void getAcceptedProposal(){
-        if(receivedMsg.getPerformative() == 0){
+        if(receivedMsg.getPerformative() == ACLMessage.INFORM){
             System.out.println(getLocalName() + " " + receivedMsg.getContent());
             this.doDelete();
         }
     }
 
     protected void sendProposeMsg(){
-        ACLMessage proposeMsg = new ACLMessage(ACLMessage.PROPOSE);
+        ACLMessage proposeMsg = new ACLMessage();
         int itemValue = 0;
         try {
             itemValue = Integer.parseInt(receivedMsg.getContent());
@@ -95,10 +98,10 @@ public class Bidder extends Agent {
             doDelete();
         }
         if(itemValue <= maxPrice){
-            proposeMsg.setContent("accept");
+            proposeMsg.setPerformative(ACLMessage.ACCEPT_PROPOSAL);
         }
         if(itemValue > maxPrice){
-            proposeMsg.setContent("reject");
+            proposeMsg.setPerformative(ACLMessage.REJECT_PROPOSAL);
         }
 
         AID auctioneer = receivedMsg.getSender();
